@@ -59,11 +59,56 @@ function! s:ConfigureSmartly() abort
 endfunction
 
 function! s:CallHookBefore() abort
-    return "\<c-r>=" . s:SID() . "HookBefore()\<CR>"
+    return "\<c-r>=" . s:SID() . "HookBefore()\<cr>"
 endfunction
 
 function! s:CallHookAfter() abort
-    return "\<c-r>=" . s:SID() . "HookAfter()\<CR>"
+    return "\<c-r>=" . s:SID() . "HookAfter()\<cr>"
+endfunction
+
+function! s:MapOperator(op) abort
+    "execute 'inoremap <buffer> <silent> ' . a:op . ' :<c-u>let b:lst_op="' . a:op . '"<cr>:set operatorfunc=<SID>ApplyOperator<cr>g@'
+    "execute 'cnoremap <buffer> <silent> ' . a:op . ' :<c-u>let b:lst_op="' . a:op . '"<cr>:set operatorfunc=<SID>ApplyOperator<cr>g@'
+    execute 'vnoremap <buffer> <silent> ' . a:op . ' :<c-u>let b:lst_ct=v:count1<cr>:let b:lst_op="' . a:op . '"<cr>:call <SID>ApplyOperator(visualmode())<cr>'
+endfunction
+
+function! <SID>HookBefore() abort
+    call s:SaveContext()
+    call s:ConfigureSmartly()
+
+    return ''
+endfunction
+
+function! <SID>HookAfter() abort
+    call s:UpdateSavedCursorPos()
+    call s:RestoreContext()
+
+    return ''
+endfunction
+
+function! <SID>ApplyOperator(type) abort
+    call <SID>HookBefore()
+
+    if a:type ==# 'v'
+        execute 'normal! `<v`>' . b:lst_ct . b:lst_op
+    elseif a:type ==# 'V'
+        execute 'normal! `<V`>' . b:lst_ct . b:lst_op
+    elseif a:type ==# ''
+        execute "normal! `<\<c-v>`>" . b:lst_ct . b:lst_op
+    elseif a:type ==# 'char'
+        execute 'normal! `[v`]' . b:lst_op
+    elseif a:type ==# 'line'
+        execute 'normal! `[V`]' . b:lst_op
+    endif
+
+    call <SID>HookAfter()
+
+    unlet b:lst_op
+    unlet b:lst_ct
+endfunction
+
+function! <SID>InsertCR() abort
+    return s:CallHookBefore() . "\<cr>" . s:CallHookAfter()
 endfunction
 
 function! <SID>InsertTab() abort
@@ -81,31 +126,18 @@ function! <SID>InsertTab() abort
     return repeat(' ', 1 + sts - sp)
 endfun
 
-function! <SID>HookBefore() abort
-    call s:SaveContext()
-    call s:ConfigureSmartly()
-
-    return ''
-endfunction
-
-function! <SID>HookAfter() abort
-    call s:UpdateSavedCursorPos()
-    call s:RestoreContext()
-
-    return ''
-endfunction
-
-function! <SID>InsertCR() abort
-    return s:CallHookBefore() . "\<CR>" . s:CallHookAfter()
-endfunction
-
 function! less_smart_tabs#enable() abort
     if &expandtab
         echo 'expandtab is enabled, skipped enabling less_smart_tabs'
         return
     endif
 
-    imap <buffer> <silent> <expr> <tab> <SID>InsertTab()
-    inoremap <buffer> <silent> <expr> <CR> <SID>InsertCR()
+    inoremap <buffer> <silent> <expr> <tab> <SID>InsertTab()
+
+    inoremap <buffer> <silent> <expr> <cr> <SID>InsertCR()
+
+    call s:MapOperator('>')
+    call s:MapOperator('<')
+    call s:MapOperator('=')
 endfunction
 
