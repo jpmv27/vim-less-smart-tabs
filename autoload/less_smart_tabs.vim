@@ -1,5 +1,5 @@
 " Some parts adapted from https://github.com/vim-scripts/Smart-Tabs
-" With inspiration from  https://www.emacswiki.org/emacs/SmartTabs
+" With inspiration from https://www.emacswiki.org/emacs/SmartTabs
 
 function! s:InIndent() abort
     return strpart(getline('.'), 0, col('.') - 1) =~# '^\s*$'
@@ -113,6 +113,7 @@ endfunction
 function! s:MapOperator(op) abort
     "execute 'inoremap <buffer> <silent> ' . a:op . ' :<c-u>let b:lst_op="' . a:op . '"<cr>:set operatorfunc=<SID>ApplyOperator<cr>g@'
     "execute 'cnoremap <buffer> <silent> ' . a:op . ' :<c-u>let b:lst_op="' . a:op . '"<cr>:set operatorfunc=<SID>ApplyOperator<cr>g@'
+    execute 'noremap <buffer> <silent> ' . a:op . ' :<c-u>let b:lst_ct=v:count1<cr>:let b:lst_op="' . a:op . '"<cr>:set operatorfunc=<SID>ApplyOperator<cr>g@'
     execute 'vnoremap <buffer> <silent> ' . a:op . ' :<c-u>let b:lst_ct=v:count1<cr>:let b:lst_op="' . a:op . '"<cr>:call <SID>ApplyOperator(visualmode())<cr>'
 endfunction
 
@@ -152,6 +153,28 @@ function! s:ShiftBlockLeft() abort
     call s:SetUserCursor([min([p1[0], p2[0]]), c])
 endfunction
 
+function! s:ApplyOperatorToLines() abort
+    let p1 = s:GetUserPos("'[")
+    let p2 = s:GetUserPos("']")
+
+    let l1 = p1[0]
+    let l2 = p2[0]
+
+    " Assumes the direction of motion is down
+    " There doesn't seem to be any way to tell what direction
+    " was selected; this doesn't work properly when moving up
+    let l2 = l1 + ((l2 - l1) * b:lst_ct)
+
+    for l in range(l1, l2)
+        call s:SetUserCursor([l, 1])
+
+        execute 'normal! ' . b:lst_op . b:lst_op
+    endfor
+
+    let c = s:GetUserPos('.')[1]
+    call s:SetUserCursor([l1, c])
+endfunction
+
 function! <SID>HookBefore() abort
     call s:SaveContext()
     call s:ConfigureSmartly()
@@ -183,7 +206,7 @@ function! <SID>ApplyOperator(type) abort
     elseif a:type ==# 'char'
         execute 'normal! `[v`]' . b:lst_op
     elseif a:type ==# 'line'
-        execute 'normal! `[V`]' . b:lst_op
+        call s:ApplyOperatorToLines()
     endif
 
     call <SID>HookAfter()
