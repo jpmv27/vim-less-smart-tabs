@@ -79,26 +79,29 @@ function! s:ConfigureSmartly() abort
     call s:SetWorkingTabs()
 endfunction
 
-function! s:GetUserPos(pos) abort
-    call s:RestoreUserTabs()
-
+function! s:GetPos(pos) abort
     let l = line(a:pos)
     " Work-around for virtcol() returning end of tab
     " rather than beginning. Beginning is one character
     " right of the end of the previous character
     let c = virtcol([l, col(a:pos) - 1]) + 1
-    let p = [l, c]
+    return [l, c]
+endfunction
 
+function! s:GetUserPos(pos) abort
+    call s:RestoreUserTabs()
+    let p = s:GetPos(a:pos)
     call s:SetWorkingTabs()
-
     return p
+endfunction
+
+function! s:SetCursor(pos) abort
+    execute 'normal! ' . a:pos[0] . 'G' . a:pos[1] . '|'
 endfunction
 
 function! s:SetUserCursor(pos) abort
     call s:RestoreUserTabs()
-
-    execute 'normal! ' . a:pos[0] . 'G' . a:pos[1] . '|'
-
+    call s:SetCursor(a:pos)
     call s:SetWorkingTabs()
 endfunction
 
@@ -111,70 +114,64 @@ function! s:CallHookAfter() abort
 endfunction
 
 function! s:MapOperator(op) abort
-    "execute 'inoremap <buffer> <silent> ' . a:op . ' :<c-u>let b:lst_op="' . a:op . '"<cr>:set operatorfunc=<SID>ApplyOperator<cr>g@'
-    "execute 'cnoremap <buffer> <silent> ' . a:op . ' :<c-u>let b:lst_op="' . a:op . '"<cr>:set operatorfunc=<SID>ApplyOperator<cr>g@'
     execute 'noremap <buffer> <silent> ' . a:op . ' :<c-u>let b:lst_ct=v:count1<cr>:let b:lst_op="' . a:op . '"<cr>:set operatorfunc=<SID>ApplyOperator<cr>g@'
     execute 'noremap <buffer> <silent> ' . a:op . a:op . ' :<c-u>let b:lst_ct=v:count1<cr>:let b:lst_op="' . a:op . a:op . '"<cr>:call <SID>ApplyDoubleOperator()<cr>'
     execute 'vnoremap <buffer> <silent> ' . a:op . ' :<c-u>let b:lst_ct=v:count1<cr>:let b:lst_op="' . a:op . '"<cr>:call <SID>ApplyOperator(visualmode())<cr>'
+    "execute 'cnoremap <buffer> <silent> ' . a:op . ' :LSTRangeOver "' . a:op . '",'
 endfunction
 
-function! s:ShiftBlockRight() abort
-    let p1 = s:GetUserPos("'<")
-    let p2 = s:GetUserPos("'>")
-    let c = min([p1[1], p2[1]])
+function! s:ShiftLinesRight(l1, l2, ntabs) abort
+    execute 'normal! :' . a:l1 . ',' . a:l2 . repeat('>', a:ntabs) . "\<cr>"
+endfunction
 
-    for l in range(p1[0], p2[0])
-        call s:SetUserCursor([l, c])
+function! s:ShiftLinesLeft(l1, l2, ntabs) abort
+    execute 'normal! :' . a:l1 . ',' . a:l2 . repeat('<', a:ntabs) . "\<cr>"
+endfunction
+
+function! s:FilterLines(l1, l2) abort
+    let nlines = abs(a:l2 - a:l1) + 1
+    call s:SetUserCursor([min([a:l1, a:l2]), 1])
+    execute 'normal! ' . nlines . '=='
+endfunction
+
+function! s:ShiftBlockRight(l1, l2, c, ntabs) abort
+    for l in range(a:l1, a:l2)
+        call s:SetUserCursor([l, a:c])
 
         if s:InIndent()
-            execute "normal! \<c-v>" . b:lst_ct . '>'
+            execute "normal! \<c-v>" . a:ntabs . '>'
         else
-            execute 'normal! i' . repeat(' ', s:TabWidth() * b:lst_ct) . "\<esc>"
+            execute 'normal! i' . repeat(' ', s:TabWidth() * a:ntabs) . "\<esc>"
         endif
     endfor
-
-    call s:SetUserCursor([min([p1[0], p2[0]]), c])
 endfunction
 
-function! s:ShiftBlockLeft() abort
-    let p1 = s:GetUserPos("'<")
-    let p2 = s:GetUserPos("'>")
-    let c = min([p1[1], p2[1]])
-
-    for l in range(p1[0], p2[0])
-        call s:SetUserCursor([l, c])
+function! s:ShiftBlockLeft(l1, l2, c, ntabs) abort
+    for l in range(a:l1, a:l2)
+        call s:SetUserCursor([l, a:c])
 
         if s:InIndent()
-            execute "normal! \<c-v>" . b:lst_ct . '<'
+            execute "normal! \<c-v>" . a:ntabs . '<'
         else
             " TODO
         endif
     endfor
-
-    call s:SetUserCursor([min([p1[0], p2[0]]), c])
 endfunction
 
-function! s:ApplyOperatorToLines() abort
-    let p1 = s:GetUserPos("'[")
-    let p2 = s:GetUserPos("']")
-
-    let l1 = p1[0]
-    let l2 = p2[0]
-
-    " Assumes the direction of motion is down
-    " There doesn't seem to be any way to tell what direction
-    " was selected; this doesn't work properly when moving up
-    let l2 = l1 + ((l2 - l1) * b:lst_ct)
-
-    for l in range(l1, l2)
-        call s:SetUserCursor([l, 1])
-
-        execute 'normal! ' . b:lst_op . b:lst_op
-    endfor
-
-    let c = s:GetUserPos('.')[1]
-    call s:SetUserCursor([l1, c])
-endfunction
+"function! s:ApplyOperatorToRange(l1, l2, op, ...) abort
+"    if a:0 == 0
+"        let ct = 1
+"    else
+"        let ct = a:1
+"    endif
+"
+"    call <SID>HookBefore()
+"
+"    echom 'a:l1='.a:l1.' a:l2='.a:l2.' ct='.ct
+"    execute 'normal! :' . a:l1 . ',' . a:l2 . a:op . ct . "\<cr>"
+"
+"    call <SID>HookAfter()
+"endfunction
 
 function! <SID>HookBefore() abort
     call s:SaveContext()
@@ -190,53 +187,86 @@ function! <SID>HookAfter() abort
 endfunction
 
 function! <SID>ApplyOperator(type) abort
+    if a:type ==# 'v' || a:type ==# 'V' || a:type ==# ''
+        let p1 = s:GetPos("'<")
+        let p2 = s:GetPos("'>")
+
+        let l1 = p1[0]
+        let l2 = p2[0]
+        let nt = b:lst_ct
+    elseif a:type ==# 'char' || a:type ==# 'line'
+        let p1 = s:GetPos("'[")
+        let p2 = s:GetPos("']")
+
+        let l1 = p1[0]
+        " Assumes the direction of motion is down
+        " There doesn't seem to be any way to tell what direction
+        " was selected; this doesn't work properly when moving up
+        let l2 = l1 + ((p2[0] - l1) * b:lst_ct)
+        let nt = 1
+    endif
+
+    if a:type ==# ''
+        let c = min([p1[1], p2[1]])
+    else
+        let c = 0
+    endif
+
     call <SID>HookBefore()
 
-    if a:type ==# 'v'
-        execute 'normal! `<v`>' . b:lst_ct . b:lst_op
-    elseif a:type ==# 'V'
-        execute 'normal! `<V`>' . b:lst_ct . b:lst_op
-    elseif a:type ==# ''
+    if a:type ==# ''
         if b:lst_op ==# '>'
-            call s:ShiftBlockRight()
+            call s:ShiftBlockRight(l1, l2, c, nt)
         elseif b:lst_op ==# '<'
-            call s:ShiftBlockLeft()
-        else
-            execute "normal! `<\<c-v>`>" . b:lst_ct . b:lst_op
+            call s:ShiftBlockLeft(l1, l2, c, nt)
+        elseif b:lst_op ==# '='
+            call s:FilterLines(l1, l2)
         endif
-    elseif a:type ==# 'char'
-        execute 'normal! `[v`]' . b:lst_op
-    elseif a:type ==# 'line'
-        call s:ApplyOperatorToLines()
+    else
+        if b:lst_op ==# '>'
+            call s:ShiftLinesRight(l1, l2, nt)
+        elseif b:lst_op ==# '<'
+            call s:ShiftLinesLeft(l1, l2, nt)
+        elseif b:lst_op ==# '='
+            call s:FilterLines(l1, l2)
+        endif
     endif
 
     call <SID>HookAfter()
 
-    unlet b:lst_op
-    unlet b:lst_ct
+    if a:type !=# ''
+        let c = s:GetPos('.')[1]
+    endif
+
+    call s:SetCursor([min([l1, l2]), c])
+
+    unlet! b:lst_op
+    unlet! b:lst_ct
 endfunction
 
 function! <SID>ApplyDoubleOperator() abort
-    call <SID>HookBefore()
-
-    let p = s:GetUserPos('.')
+    let p = s:GetPos('.')
 
     let l1 = p[0]
     let l2 = l1 + b:lst_ct - 1
 
-    for l in range(l1, l2)
-        call s:SetUserCursor([l, 1])
+    call <SID>HookBefore()
 
-        execute 'normal! ' . b:lst_op
-    endfor
-
-    let c = s:GetUserPos('.')[1]
-    call s:SetUserCursor([l1, c])
+    if b:lst_op ==# '>>'
+        call s:ShiftLinesRight(l1, l2, 1)
+    elseif b:lst_op ==# '<<'
+        call s:ShiftLinesLeft(l1, l2, 1)
+    elseif b:lst_op ==# '=='
+        call s:FilterLines(l1, l2)
+    endif
 
     call <SID>HookAfter()
 
-    unlet b:lst_op
-    unlet b:lst_ct
+    let c = s:GetPos('.')[1]
+    call s:SetCursor([l1, c])
+
+    unlet! b:lst_op
+    unlet! b:lst_ct
 endfunction
 
 function! <SID>InsertCR() abort
@@ -271,5 +301,7 @@ function! less_smart_tabs#enable() abort
     call s:MapOperator('>')
     call s:MapOperator('<')
     call s:MapOperator('=')
+
+    "command! -buffer -range -nargs=+ LSTRangeOver call s:ApplyOperatorToRange(<line1>,<line2>,<args>)
 endfunction
 
