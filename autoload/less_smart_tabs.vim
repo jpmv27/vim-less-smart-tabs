@@ -114,6 +114,7 @@ function! s:MapOperator(op) abort
     "execute 'inoremap <buffer> <silent> ' . a:op . ' :<c-u>let b:lst_op="' . a:op . '"<cr>:set operatorfunc=<SID>ApplyOperator<cr>g@'
     "execute 'cnoremap <buffer> <silent> ' . a:op . ' :<c-u>let b:lst_op="' . a:op . '"<cr>:set operatorfunc=<SID>ApplyOperator<cr>g@'
     execute 'noremap <buffer> <silent> ' . a:op . ' :<c-u>let b:lst_ct=v:count1<cr>:let b:lst_op="' . a:op . '"<cr>:set operatorfunc=<SID>ApplyOperator<cr>g@'
+    execute 'noremap <buffer> <silent> ' . a:op . a:op . ' :<c-u>let b:lst_ct=v:count1<cr>:let b:lst_op="' . a:op . a:op . '"<cr>:call <SID>ApplyDoubleOperator()<cr>'
     execute 'vnoremap <buffer> <silent> ' . a:op . ' :<c-u>let b:lst_ct=v:count1<cr>:let b:lst_op="' . a:op . '"<cr>:call <SID>ApplyOperator(visualmode())<cr>'
 endfunction
 
@@ -208,6 +209,29 @@ function! <SID>ApplyOperator(type) abort
     elseif a:type ==# 'line'
         call s:ApplyOperatorToLines()
     endif
+
+    call <SID>HookAfter()
+
+    unlet b:lst_op
+    unlet b:lst_ct
+endfunction
+
+function! <SID>ApplyDoubleOperator() abort
+    call <SID>HookBefore()
+
+    let p = s:GetUserPos('.')
+
+    let l1 = p[0]
+    let l2 = l1 + b:lst_ct - 1
+
+    for l in range(l1, l2)
+        call s:SetUserCursor([l, 1])
+
+        execute 'normal! ' . b:lst_op
+    endfor
+
+    let c = s:GetUserPos('.')[1]
+    call s:SetUserCursor([l1, c])
 
     call <SID>HookAfter()
 
