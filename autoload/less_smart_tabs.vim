@@ -153,7 +153,7 @@ function! s:ShiftBlockLeft(l1, l2, c, ntabs) abort
         if s:InIndent()
             execute "normal! \<c-v>" . a:ntabs . '<'
         else
-            " TODO
+            execute 'normal! :s/\%' . getcurpos()[2] . 'c[ ]\{,' . (s:TabWidth() * a:ntabs) . "}//\<cr>"
         endif
     endfor
 endfunction
