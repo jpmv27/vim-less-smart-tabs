@@ -188,15 +188,15 @@ endfunction
 
 function! <SID>ApplyOperator(type) abort
     if a:type ==# 'v' || a:type ==# 'V' || a:type ==# ''
-        let p1 = s:GetPos("'<")
-        let p2 = s:GetPos("'>")
+        let p1 = s:GetPos("`<")
+        let p2 = s:GetPos("`>")
 
         let l1 = p1[0]
         let l2 = p2[0]
         let nt = b:lst_ct
     elseif a:type ==# 'char' || a:type ==# 'line'
-        let p1 = s:GetPos("'[")
-        let p2 = s:GetPos("']")
+        let p1 = s:GetPos("`[")
+        let p2 = s:GetPos("`]")
 
         let l1 = p1[0]
         " Assumes the direction of motion is down
